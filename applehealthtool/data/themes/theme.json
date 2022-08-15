@@ -1,0 +1,52 @@
+{
+  "text_entry_line": {
+    "misc": {
+      "padding": "16,4"
+    }
+  },
+  "@bold": {
+    "font": {
+      "name": "fira_code",
+      "size": "25",
+      "bold": "1"
+    }
+  },
+  "@bold-16": {
+    "font": {
+      "name": "fira_code",
+      "size": "15",
+      "bold": "1"
+    }
+  },
+  "@vert-centered": {
+    "misc": {
+      "text_vert_alignment": "center"
+    }
+  },
+  "#data-label": {
+    "prototype": "@bold-16",
+    "misc": {
+      "text_horiz_alignment": "left",
+      "text_horiz_alignment_padding": "10",
+      "text_vert_alignment": "center"
+    }
+  },
+  "#progress-label": {
+    "prototype": "@bold-16",
+    "misc": {
+      "text_horiz_alignment": "right",
+      "text_horiz_alignment_padding": "5",
+      "text_vert_alignment": "center"
+    }
+  },
+  "@label_left": {
+    "misc": {
+      "text_horiz_alignment": "left"
+    }
+  },
+  "@label_center": {
+    "misc": {
+      "text_horiz_alignment": "center"
+    }
+  }
+}
