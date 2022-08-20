@@ -11,7 +11,7 @@ from pygame_gui.windows import UIFileDialog, UIMessageWindow
 from pycraft_gui.gui_app import GuiApp
 
 import applehealthtool
-from applehealthtool.data import DataPanel, LOAD_DATABASE, SELECT_DATABASE, SELECT_SOURCE_FILE, LOAD_DATA_SOURCE
+from applehealthtool.data_panel import DataPanel, LOAD_DATABASE, SELECT_DATABASE, SELECT_SOURCE_FILE, LOAD_DATA_SOURCE
 from applehealthtool.healthdatabase import AppleHealthDatabase
 from applehealthtool.healthdatabase import HealthData
 from applehealthtool.report import ReportPanel

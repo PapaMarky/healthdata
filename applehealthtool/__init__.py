@@ -1,4 +1,5 @@
 import os
+import applehealthtool.data
 
 install_path = os.path.dirname(__file__)
 _data_dir = os.path.join(install_path, 'data')

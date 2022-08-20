@@ -1,4 +1,14 @@
 {
+  "#prototype_mono_font": {
+    "font": {
+      "size": "10",
+      "bold": "0",
+      "italic": "0",
+      "name": "fira_mono",
+      "regular_resource": { "package": "applehealthtool.data.fonts", "resource": "FiraMono-Regular.ttf"},
+      "bold_resource": { "package": "applehealthtool.data.fonts", "resource": "FiraMono-Bold.ttf"}
+    }
+  },
   "text_entry_line": {
     "misc": {
       "padding": "16,4"
@@ -6,15 +16,15 @@
   },
   "@bold": {
     "font": {
-      "name": "fira_code",
+      "name": "fira_mono",
       "size": "25",
       "bold": "1"
     }
   },
   "@bold-16": {
     "font": {
-      "name": "fira_code",
-      "size": "15",
+      "name": "fira_mono",
+      "size": "16",
       "bold": "1"
     }
   },
