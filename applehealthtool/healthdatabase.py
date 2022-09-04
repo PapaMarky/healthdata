@@ -3,7 +3,9 @@ from datetime import datetime
 from datetime import timezone
 import sqlalchemy
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import sessionmaker, Query
+from sqlalchemy.orm import aliased
+from sqlalchemy.sql import text
 from sqlalchemy import func
 import sqlalchemy.types as types
 
@@ -13,17 +15,17 @@ class TZDateTime(types.TypeDecorator):
     cache_ok = True
 
     def process_bind_param(self, value, dialect):
-        if value is not None:
-            if not value.tzinfo:
-                raise TypeError("tzinfo is required")
-            value = value.astimezone(timezone.utc).replace(
-                tzinfo=None
-            )
+        # if value is not None:
+            # if not value.tzinfo:
+            #     raise TypeError("tzinfo is required")
+            # value = value.astimezone(timezone.utc).replace(
+            #     tzinfo=None
+            # )
         return value
 
     def process_result_value(self, value, dialect):
         if value is not None:
-            value = value.replace(tzinfo=timezone.utc)
+            # value = value.replace(tzinfo=timezone.utc)
             value = value.astimezone()
         return value
 
@@ -83,6 +85,41 @@ class AppleHealthDatabase():
             print(f'n: {row}')
 
             return row
+
+    def get_blood_pressure_report(self, startdate=None):
+        if not startdate:
+            startdate = '2022-05=06'
+        query = f'''
+SELECT DISTINCT s.creationDate as date, s.value as systolic, d.value as diastolic FROM
+(select creationDate, type, value from health_data where type = 'HKQuantityTypeIdentifierBloodPressureSystolic' AND
+creationDate > '{startdate}' AND sourceName = 'Health') s
+JOIN
+(select creationDate, type, value from health_data where type = 'HKQuantityTypeIdentifierBloodPressureDiastolic' AND
+creationDate > '{startdate}' AND sourceName = 'Health') d
+on
+s.creationDate = d.creationDate
+order by s.creationDate desc
+        '''
+        statement = text(query)
+        with self._open_session() as session:
+            n = session.execute(statement)
+            rows = n.fetchall()
+            return [r._asdict() for r in rows]
+
+    def XXX(self):
+        with self._open_session() as session:
+            dtable = aliased(HealthData)
+            stable = aliased(HealthData)
+            query = session.query(stable).select_from(dtable).join(stable, dtable.creationDate == stable.creationDate).filter(dtable.type == 'HKQuantityTypeIdentifierBloodPressureDiastolic').filter(stable.type == 'HKQuantityTypeIdentifierBloodPressureSystolic')
+
+
+
+            q0 = session.query(HealthData).filter(HealthData.type.is_('HKQuantityTypeIdentifierBloodPressureSystolic'))
+            q1 = session.query(HealthData).filter(HealthData.type.is_('HKQuantityTypeIdentifierBloodPressureDiastolic'))
+            qJoin = q0.join(q1)
+            for instance in qJoin:
+                print(instance.type, instance.value)
+
     def insert_records(self, records, callback=None):
         with self._open_session() as session:
             count = 0

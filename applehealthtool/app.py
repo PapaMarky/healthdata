@@ -163,6 +163,12 @@ class AppleHealthTool(GuiApp):
             self._data_panel.set_number_of_records_text(n)
             print(f'Most recent: {self._database.latest_record()}')
 
+            bp_report = self._database.get_blood_pressure_report()
+            for row in bp_report:
+                print(f'row: {row["date"]} : {row["systolic"]:3}/{row["diastolic"]}')
+
+                # NOTE date is just a str
+
     def open_database(self, path):
         try:
             if not os.path.exists(os.path.dirname(path)):
