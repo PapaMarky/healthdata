@@ -18,7 +18,11 @@ class UIGraph(UIImage):
             'text_color': pygame.Color(0, 0, 0)
         },
         'graph': {
-            'background_color': pygame.Color(200, 200, 200)
+            'background_color': pygame.Color(200, 200, 200),
+            'axis': {
+                'color': pygame.Color(0, 0, 0),
+                'width': 3
+            }
         }
     }
     def __init__(self,
@@ -33,6 +37,8 @@ class UIGraph(UIImage):
                  title_font_name = None,
                  title_font_size = 0,
                  title_text_color = None,
+                 axis_width = None,
+                 axis_color = None,
                  graph_background = None,
                  data_config=None,
                  data=None
@@ -51,6 +57,9 @@ class UIGraph(UIImage):
             self._graph_bg_color = self.DEFAULT_CONFIG['graph']['background_color']
 
         self.set_title_font(title_font_name, title_font_size)
+
+        self.axis_color = self.DEFAULT_CONFIG['graph']['axis']['color'] if axis_color is None else axis_color
+        self.axis_width = self.DEFAULT_CONFIG['graph']['axis']['width'] if axis_width is None else axis_width
 
         self.set_data(data_config, data)
         surface = pygame.Surface(relative_rect.size)
@@ -117,36 +126,70 @@ class UIGraph(UIImage):
             assert 'samples' in config
 
     def recalculate_layout(self):
-        width, height = self.get_relative_rect().size
+        screen_width, screen_height = self.get_relative_rect().size
 
         # for now, title is centered horizontally, top aligned vertically
         w = self._title_image.get_width()
         h = self._title_image.get_height()
-        x = self.left_margin + width / 2 - w / 2
+        x = self.left_margin + screen_width / 2 - w / 2
         y = self.top_margin
-        self._title_rect = pygame.Rect(x, y, w, h)
+        self.title_rect = pygame.Rect(x, y, w, h)
 
         # graph box
-        w = width - self.left_margin - self.right_margin
-        h = height - self.top_margin - self._title_rect.height - self.bottom_margin
+        w = screen_width - self.left_margin - self.right_margin
+        h = screen_height - self.top_margin - self.title_rect.height - self.bottom_margin
         x = self.left_margin
-        y = self.top_margin + self._title_rect.height
-        self._graph_rect = pygame.Rect(x, y, w, h)
+        y = self.top_margin + self.title_rect.height
+        self.graph_rect = pygame.Rect(x, y, w, h)
+
+        axis_size = 150# should come from ???
+        # y axis box
+        w = axis_size
+        h = self.graph_rect.height - axis_size
+        x = self.graph_rect.left
+        y = self.graph_rect.top
+        self.y_axis_rect = pygame.Rect(x, y, w, h)
+        # x axis box
+        w = self.graph_rect.width - axis_size
+        h = axis_size
+        x = self.graph_rect.left + axis_size
+        y = self.graph_rect.bottom - axis_size
+        self.x_axis_rect = pygame.Rect(x, y, w, h)
+
+        # graph data display rect
+        w = screen_width - axis_size
+        h = screen_height - axis_size - self.title_rect.height - 2 * self._margin
+        x = self.y_axis_rect.right
+        y = self.title_rect.bottom
+        self.graph_data_rect = pygame.Rect(x, y, w, h)
 
     def draw_title(self, surface):
         # draw the title
         if self._title_image:
-            surface.blit(self._title_image, (self._title_rect.left, self._title_rect.top))
+            surface.blit(self._title_image, (self.title_rect.left, self.title_rect.top))
 
     def draw_graph(self, surface):
         # draw the graph
-        pygame.draw.rect(surface, self._graph_bg_color, self._graph_rect)
+        pygame.draw.rect(surface, self._graph_bg_color, self.graph_rect)
+
+    def draw_axis(self, surface):
+        start = self.y_axis_rect.topright
+        end = self.y_axis_rect.bottomright
+        pygame.draw.line(surface, self.axis_color, start, end, self.axis_width)
+        start = self.x_axis_rect.topleft
+        end = self.x_axis_rect.topright
+        pygame.draw.line(surface, self.axis_color, start, end, self.axis_width)
+
+    def draw_graph_data(self, surface):
+        pygame.draw.rect(surface, pygame.Color(255, 255, 255), self.graph_data_rect)
 
     def redraw(self):
         surface = pygame.Surface(self.get_relative_rect().size, flags=SRCALPHA)
         surface.fill(self._background_color)
         self.draw_title(surface)
         self.draw_graph(surface)
+        self.draw_graph_data(surface)
+        self.draw_axis(surface)
         self.set_image(surface)
 
     @classmethod
