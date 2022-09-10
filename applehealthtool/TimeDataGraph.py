@@ -11,9 +11,15 @@ from pygame_gui.elements import UIImage
 class UIGraph(UIImage):
     DEFAULT_CONFIG = {
         'background_color': pygame.Color(255, 255, 255),
-        'title_font': 'arial',
-        'title_font_size': 20,
-        'title_text_color': pygame.Color(0, 0, 0)
+        'margin': 10,
+        'title': {
+            'font': 'arial',
+            'font_size': 20,
+            'text_color': pygame.Color(0, 0, 0)
+        },
+        'graph': {
+            'background_color': pygame.Color(200, 200, 200)
+        }
     }
     def __init__(self,
                  relative_rect: pygame.Rect,
@@ -27,18 +33,22 @@ class UIGraph(UIImage):
                  title_font_name = None,
                  title_font_size = 0,
                  title_text_color = None,
+                 graph_background = None,
                  data_config=None,
                  data=None
                  ):
         self.background_color = UIGraph.DEFAULT_CONFIG['background_color']
-
+        self._margin = self.DEFAULT_CONFIG['margin']
         self._title = title
         if title_font_name is None:
-            title_font_name = self.DEFAULT_CONFIG['title_font']
+            title_font_name = self.DEFAULT_CONFIG['title']['font']
         if title_font_size == 0:
-            title_font_size = self.DEFAULT_CONFIG['title_font_size']
+            title_font_size = self.DEFAULT_CONFIG['title']['font_size']
         if title_text_color is None:
-            self._title_text_color = self.DEFAULT_CONFIG['title_text_color']
+            self._title_text_color = self.DEFAULT_CONFIG['title']['text_color']
+
+        if graph_background is None:
+            self._graph_bg_color = self.DEFAULT_CONFIG['graph']['background_color']
 
         self.set_title_font(title_font_name, title_font_size)
 
@@ -53,8 +63,22 @@ class UIGraph(UIImage):
                          anchors=anchors,
                          visible=visible
                          )
+        self.recalculate_layout()
         self.redraw()
         # IGraph._list_system_fonts()
+
+    @property
+    def top_margin(self):
+        return self._margin
+    @property
+    def bottom_margin(self):
+        return self._margin
+    @property
+    def left_margin(self):
+        return self._margin
+    @property
+    def right_margin(self):
+        return self._margin
 
     @property
     def background_color(self):
@@ -92,14 +116,37 @@ class UIGraph(UIImage):
             assert 'timestamp' in config
             assert 'samples' in config
 
+    def recalculate_layout(self):
+        width, height = self.get_relative_rect().size
+
+        # for now, title is centered horizontally, top aligned vertically
+        w = self._title_image.get_width()
+        h = self._title_image.get_height()
+        x = self.left_margin + width / 2 - w / 2
+        y = self.top_margin
+        self._title_rect = pygame.Rect(x, y, w, h)
+
+        # graph box
+        w = width - self.left_margin - self.right_margin
+        h = height - self.top_margin - self._title_rect.height - self.bottom_margin
+        x = self.left_margin
+        y = self.top_margin + self._title_rect.height
+        self._graph_rect = pygame.Rect(x, y, w, h)
+
+    def draw_title(self, surface):
+        # draw the title
+        if self._title_image:
+            surface.blit(self._title_image, (self._title_rect.left, self._title_rect.top))
+
+    def draw_graph(self, surface):
+        # draw the graph
+        pygame.draw.rect(surface, self._graph_bg_color, self._graph_rect)
+
     def redraw(self):
         surface = pygame.Surface(self.get_relative_rect().size, flags=SRCALPHA)
         surface.fill(self._background_color)
-
-        # draw the title
-        if self._title_image:
-            surface.blit(self._title_image, (5,5))
-
+        self.draw_title(surface)
+        self.draw_graph(surface)
         self.set_image(surface)
 
     @classmethod
