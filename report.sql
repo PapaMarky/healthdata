@@ -1,17 +1,21 @@
 SELECT DISTINCT
-  STRFTIME('%Y/%m/%d %H:%M', s.creationDate) || ' : ' || s.value || '/' || d.value
+  s.startDate, s.value 'systolic', d.value 'diastolic'
     FROM
     (
-      select creationDate, type, value
-      from health_data
-      where type = 'HKQuantityTypeIdentifierBloodPressureSystolic' AND
-        creationDate > '2022-05-06' AND sourceName = 'Health') s
-JOIN
-(select
-  creationDate, type, value
-  from health_data
-  where type = 'HKQuantityTypeIdentifierBloodPressureDiastolic' AND
-creationDate > '2022-05-06' AND sourceName = 'Health') d
-on
-s.creationDate = d.creationDate
-order by s.creationDate desc
+      SELECT startDate, type, value
+      FROM health_data
+      WHERE
+        type = 'HKQuantityTypeIdentifierBloodPressureSystolic' AND
+        sourceName = 'Health'
+    ) s
+    JOIN
+    (
+        SELECT startDate, type, value
+        FROM health_data
+        WHERE
+            type = 'HKQuantityTypeIdentifierBloodPressureDiastolic' AND
+            sourceName = 'Health'
+    ) d
+    ON
+        s.startDate = d.startDate AND s.startDate > '2022-05-06'
+    ORDER BY s.startDate DESC

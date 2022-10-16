@@ -12,17 +12,17 @@ from applehealthtool.GraphData import DataViewScaler
 
 class UIGraph(UIImage):
     DEFAULT_CONFIG = {
-        'background_color': pygame.Color(255, 255, 255),
+        'background_color': pygame.Color(255, 255, 255, 255),
         'margin': 10,
         'title': {
             'font': 'arial',
             'font_size': 20,
-            'text_color': pygame.Color(0, 0, 0)
+            'text_color': pygame.Color(0, 0, 0, 255)
         },
         'graph': {
-            'background_color': pygame.Color(200, 200, 200),
+            'background_color': pygame.Color(200, 200, 200, 255),
             'axis': {
-                'color': pygame.Color(0, 0, 0),
+                'color': pygame.Color(0, 0, 0, 255),
                 'width': 3
             }
         }
@@ -45,8 +45,9 @@ class UIGraph(UIImage):
                  data=None
                  ):
         self.data_sets = []
-        for d in data:
-            self.add_data(d)
+        if data is not None:
+            for d in data:
+                self.add_data(d)
 
         self.background_color = UIGraph.DEFAULT_CONFIG['background_color']
         self._margin = self.DEFAULT_CONFIG['margin']
@@ -180,6 +181,8 @@ class UIGraph(UIImage):
         (xmin, xmax) = self.data_sets[0].x_minmax
         (ymin, ymax) = self.data_sets[0].y_minmax
         for ds in self.data_sets:
+            if ds.data_count < 1:
+                continue
             (xmin1, xmax1) = ds.x_minmax
             if xmin1 < xmin:
                 xmin = xmin1
@@ -195,8 +198,11 @@ class UIGraph(UIImage):
         xscaler = DataViewScaler((xmin, xmax), (view_min_x, view_max_x))
         view_min_y = self.graph_data_rect.top
         view_max_y = self.graph_data_rect.bottom
-        yscaler = DataViewScaler((ymin, ymax), (view_min_y, view_max_y))
-
+        # on the screen zero is top so we put the max world y (200) first to flip the graph
+        yscaler = DataViewScaler((200, 0), (view_min_y, view_max_y))
+        y0 = yscaler.scale(120)
+        y1 = yscaler.scale(80)
+        pygame.draw.rect(surface, pygame.Color(200, 255, 200, 255), pygame.Rect(view_min_x, y0, view_max_x - view_min_x, y1 - y0))
         for ds in self.data_sets:
             print(f'DS: {ds}')
             lines = []
@@ -205,22 +211,23 @@ class UIGraph(UIImage):
                 print(f'Start Empty Line: {y}')
                 lines.append([])
 
+            if ds.data_count > 0:
+                print(f'First Row: {ds._data[0]["startDate"]}')
+                print(f' Last Row: {ds._data[-1]["startDate"]}')
+            else:
+                print(f'NO DATA')
             for row in ds:
-                print(f' - row: {row}')
-                x = xscaler.scale(row[0])
-                pygame.draw.line(surface, pygame.Color(0, 0, 0), (x, self.graph_data_rect.top), (x, self.graph_data_rect.bottom))
+                x = xscaler.scale(float(row[0]))
                 for i in range(ycount):
-                    y = yscaler.scale(row[i + 1])
+                    y = yscaler.scale(float(row[i + 1]))
                     lines[i].append([x, y])
 
             for line in lines:
-                print(f'POINTS: {line}')
-                pygame.draw.lines(surface, ds.color, False, line, width=ds.line_width)
-
-
+                if len(line) > 1:
+                    pygame.draw.lines(surface, ds.color, False, line, width=ds.line_width)
 
     def draw_graph_data(self, surface):
-        pygame.draw.rect(surface, pygame.Color(255, 255, 0), self.graph_data_rect)
+        pygame.draw.rect(surface, pygame.Color(250, 250, 250, 255), self.graph_data_rect)
         self.draw_data_sets(surface)
 
     def redraw(self):

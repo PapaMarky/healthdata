@@ -14,7 +14,9 @@ class DataSeries():
         self._label = label
         self._color = color
         self._line_width = line_width
-
+        self._xmin = self._xmax = self._ymin = self._ymax = None
+        if len(self._data) < 1:
+            return
         if timeseries:
             # convert dates to integers
             orig_x_col = x_data_row + '_orig'
@@ -22,14 +24,14 @@ class DataSeries():
             for d in self._data:
                 d[orig_x_col] = d[x_data_row]
                 d[x_data_row] = datetime.datetime.timestamp(d[x_data_row])
-                print(f' - timestamp: {d[x_data_row]}')
-        self._xmin = self._data[0][self._x_data_row]
-        self._xmax = self._data[-1][self._x_data_row]
+                # print(f' - timestamp: {d[x_data_row]}')
+        self._xmin = float(self._data[0][self._x_data_row])
+        self._xmax = float(self._data[-1][self._x_data_row])
 
-        self._ymin = self._ymax = self._data[0][self._y_data_rows[0]]
+        self._ymin = self._ymax = float(self._data[0][self._y_data_rows[0]])
         for row in self._data:
             for col in self._y_data_rows:
-                d = row[col]
+                d = float(row[col])
                 if d < self._ymin:
                     self._ymin = d
                 if d > self._ymax:
@@ -55,6 +57,10 @@ class DataSeries():
 
     def __iter__(self):
         return self.DataSeriesIterator(self)
+
+    @property
+    def data_count(self):
+        return len(self._data)
 
     @property
     def x_minmax(self):
@@ -95,6 +101,7 @@ class DataViewScaler:
         self.clamp = clamp
 
     def scale(self, data_value):
+        data_value = float(data_value)
         if self.clamp:
             if data_value < self.data_min:
                 data_value = self.data_min

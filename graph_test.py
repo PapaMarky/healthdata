@@ -7,6 +7,7 @@ from pygame_gui_extras.app import GuiApp
 
 from applehealthtool.GraphData import DataSeries
 from applehealthtool.TimeDataGraph import UITimeDataGraph
+from applehealthtool.healthdatabase import AppleHealthDatabase
 
 test_data = [
     {"date": datetime.strptime("2022-06-01 10:36:23.000000", "%Y-%m-%d %H:%M:%S.000000"), "systolic": 146, "diastolic": 81},
@@ -46,16 +47,11 @@ test_data = [
 
 
 class GraphTestApp(GuiApp):
+    def add_data(self, data_set):
+        self.graph.add_data(data_set)
+
     def __init__(self, size=(1280, 960)):
         super().__init__(size, title='Graph Test Tool')
-        data_series = DataSeries(test_data,
-                                 x_data_row='date',
-                                 y_data_rows=['systolic', 'diastolic'],
-                                 label='blood pressure',
-                                 timeseries=True,
-                                 color=pygame.Color(255, 0, 0),
-                                 line_width=3
-                                 )
 
         self.graph = UITimeDataGraph(
             pygame.Rect((0, 0), size),
@@ -64,11 +60,51 @@ class GraphTestApp(GuiApp):
             anchors={
                 'top': 'top', 'left': 'left',
                 'bottom': 'bottom', 'right': 'right'
-            },
-            data=[data_series]
+            }
         )
 
+    def setup(self):
+        self.graph.add_data(data_series)
+        self.graph.redraw()
+
+DB_PATH = './health.db'
+
 if __name__ == '__main__':
+    database = AppleHealthDatabase()
+    db_engine = database.open_database(DB_PATH, echo=True)
     app = GraphTestApp()
+
+    startdate = '2022-07-03'
+    startdate = '2022-08-09'
+    enddate = '2022-08-15'
+    sourcename = ''
+    # sourcename = 'FitCloudPro'
+    bp_data = database.get_blood_pressure_report(startdate=startdate, enddate=enddate, sourcename=sourcename)
+    print(f'** BP Count: {len(bp_data)}')
+    if len(bp_data) > 0:
+        print(f'** BP Start: {bp_data[0]["startDate"]}')
+        print(f'** BP   End: {bp_data[-1]["startDate"]}')
+    data_series = DataSeries(bp_data,
+                             x_data_row='startDate',
+                             y_data_rows=['systolic', 'diastolic'],
+                             label='blood pressure',
+                             timeseries=True,
+                             color=pygame.Color(200, 0, 0, 255),
+                             line_width=3
+                             )
+    app.add_data(data_series)
+    hr_data = database.get_heart_rate_report(startdate=startdate, enddate=enddate, sourcename=sourcename)
+    print(f'** HR Count: {len(hr_data)}')
+    if len(hr_data) > 0:
+        print(f'** HR Start: {hr_data[0]["startDate"]}')
+        print(f'** HR   End: {hr_data[-1]["startDate"]}')
+    hr_series = DataSeries(hr_data,
+                           x_data_row='startDate',
+                           y_data_rows=['heartrate'],
+                           label='heart rate',
+                           timeseries=True,
+                           color=pygame.Color(0, 200, 0, 255),
+                           line_width=3)
+    app.add_data(hr_series)
     app.setup()
     app.run()
