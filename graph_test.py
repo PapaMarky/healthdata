@@ -66,6 +66,7 @@ class GraphTestApp(GuiApp):
     def add_sleep_data(self, data:DataDateRange):
         if data.data_count > 0:
             self.graph.add_sleep_data(data)
+
     def set_date_range(self, startdate, enddate):
         d = datetime.strptime(startdate, "%Y-%m-%d")
         date0 = datetime.timestamp(d)
@@ -138,4 +139,5 @@ if __name__ == '__main__':
 
 
     app.setup()
+    app.graph.save_to_image('GRAPHTEST.png')
     app.run()
