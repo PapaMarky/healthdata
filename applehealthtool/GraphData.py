@@ -3,7 +3,8 @@ import datetime
 import pygame
 
 class DataSet():
-    def __init__(self, rows, label='', color=pygame.Color(0, 0, 0)):
+    def __init__(self, name, rows, label='', color=pygame.Color(0, 0, 0)):
+        self.name = name
         self._data = rows
         self.label = label
         self._color = color
@@ -13,11 +14,11 @@ class DataSet():
         return len(self._data)
 
 class DataDateRange(DataSet):
-    def __init__(self, rows, x_start_col, x_end_col, type_col,
+    def __init__(self, name, rows, x_start_col, x_end_col, type_col,
                  config,
                  label='', color=pygame.Color(200, 200, 255), border_color=None, border_width=0
                  ):
-        super().__init__(rows, label=label, color=color)
+        super().__init__(name, rows, label=label, color=color)
         self.x_start_col = x_start_col
         self.x_end_col = x_end_col
         self.type_col = type_col
@@ -68,9 +69,9 @@ class DataDateRangeIterator():
 
 class DataSeries(DataSet):
 
-    def __init__(self, rows, x_data_col, y_data_cols,
+    def __init__(self, name, rows, x_data_col, y_data_cols,
                  label='', color=pygame.Color(0, 0, 0), timeseries=False, line_width=1):
-        super().__init__(rows, label=label, color=color)
+        super().__init__(name, rows, label=label, color=color)
 
         self._x_data_col = x_data_col
         self._y_data_cols = y_data_cols
