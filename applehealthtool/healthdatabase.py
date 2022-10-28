@@ -6,7 +6,7 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Query
 from sqlalchemy.orm import aliased
 from sqlalchemy.sql import text
-from sqlalchemy import func
+from sqlalchemy import func, select
 import sqlalchemy.types as types
 
 
@@ -51,12 +51,12 @@ class AppleHealthDatabase():
         self.db_path = None
         self.db_engine = None
 
-    def open_database(self, path):
+    def open_database(self, path, echo=False):
         self.db_path = path
         print(f'Opening DB: {self.db_path}')
         uri = f'sqlite:///{self.db_path}'
         print(uri)
-        self.db_engine = sqlalchemy.create_engine(uri, echo = False)
+        self.db_engine = sqlalchemy.create_engine(uri, echo = echo)
         self.metadata = Base.metadata # sqlalchemy.MetaData(self.db_engine)
         Base.metadata.create_all(self.db_engine)
         self.db_engine.connect()
@@ -86,39 +86,107 @@ class AppleHealthDatabase():
 
             return row
 
-    def get_blood_pressure_report(self, startdate=None):
+    def get_sleep_report(self, startdate=None, enddate=None, sourcename=''):
         if not startdate:
-            startdate = '2022-05=06'
+            startdate = datetime.strptime('1970-01-01', "%Y-%m-%d")
+        if not enddate:
+            enddate = datetime.now()
+        if sourcename != '':
+            print(f' HR Source: {sourcename}')
+            sourcename = f' AND sourceName = "{sourcename}" '
         query = f'''
-SELECT DISTINCT s.creationDate as date, s.value as systolic, d.value as diastolic FROM
-(select creationDate, type, value from health_data where type = 'HKQuantityTypeIdentifierBloodPressureSystolic' AND
-creationDate > '{startdate}' AND sourceName = 'Health') s
-JOIN
-(select creationDate, type, value from health_data where type = 'HKQuantityTypeIdentifierBloodPressureDiastolic' AND
-creationDate > '{startdate}' AND sourceName = 'Health') d
-on
-s.creationDate = d.creationDate
-order by s.creationDate desc
-        '''
+SELECT sourceName, creationDate, startDate, endDate, value 
+FROM health_data 
+WHERE type = "HKCategoryTypeIdentifierSleepAnalysis"
+    AND startDate >= "{startdate}" AND endDate <= "{enddate}" AND sourceName = "FitCloudPro"
+    ORDER BY startDate
+'''
+        queryxx = f'''
+SELECT sourceName, creationDate, startDate, endDate, value
+CASE
+    WHEN value = "HKCategoryValueSleepAnalysisInBed" THEN 0
+    WHEN value = "HKCategoryValueSleepAnalysisAsleep" THEN 1
+    WHEN value = "HKCategoryValueSleepAnalysisAwake" THEN 2
+END AS ord
+FROM health_data 
+WHERE type = "HKCategoryTypeIdentifierSleepAnalysis"
+    AND startDate >= "{startdate}" AND endDate <= "{enddate}"
+    ORDER BY startDate, ord
+'''
         statement = text(query)
         with self._open_session() as session:
             n = session.execute(statement)
-            rows = n.fetchall()
-            return [r._asdict() for r in rows]
+            rows = []
+            for r in n:
+                cdate = datetime.strptime(r[1], '%Y-%m-%d %H:%M:%S.000000')
+                sdate = datetime.strptime(r[2], '%Y-%m-%d %H:%M:%S.000000')
+                edate = datetime.strptime(r[3], '%Y-%m-%d %H:%M:%S.000000')
+                d = {'source': r[0],
+                     'creationDate': cdate, 'startDate': sdate, 'endDate': edate,
+                     'value': r[4]}
+                rows.append(d)
+            return rows
 
-    def XXX(self):
+    def get_heart_rate_report(self, startdate=None, enddate=None, sourcename=''):
+        if not startdate:
+            startdate = datetime.strptime('1970-01-01', "%Y-%m-%d")
+        if not enddate:
+            enddate = datetime.now()
+        if sourcename != '':
+            print(f' HR Source: {sourcename}')
+            sourcename = f' AND sourceName = "{sourcename}" '
+        query = f'''
+SELECT DISTINCT startDate, value FROM health_data 
+    WHERE type = "HKQuantityTypeIdentifierHeartRate" AND startDate >= "{startdate}" AND endDate <= "{enddate}" {sourcename}
+'''
+        statement = text(query)
         with self._open_session() as session:
-            dtable = aliased(HealthData)
-            stable = aliased(HealthData)
-            query = session.query(stable).select_from(dtable).join(stable, dtable.creationDate == stable.creationDate).filter(dtable.type == 'HKQuantityTypeIdentifierBloodPressureDiastolic').filter(stable.type == 'HKQuantityTypeIdentifierBloodPressureSystolic')
+            n = session.execute(statement)
+            rows = []
+            for r in n:
+                cdate = datetime.strptime(r[0], '%Y-%m-%d %H:%M:%S.000000')
+                d = {'startDate': cdate, 'heartrate': r[1]}
+                rows.append(d)
+            return rows
 
-
-
-            q0 = session.query(HealthData).filter(HealthData.type.is_('HKQuantityTypeIdentifierBloodPressureSystolic'))
-            q1 = session.query(HealthData).filter(HealthData.type.is_('HKQuantityTypeIdentifierBloodPressureDiastolic'))
-            qJoin = q0.join(q1)
-            for instance in qJoin:
-                print(instance.type, instance.value)
+    def get_blood_pressure_report(self, startdate=None, enddate=None, sourcename=''):
+        if not startdate:
+            startdate = datetime.strptime('1970-01-01', "%Y-%m-%d")
+        if not enddate:
+            enddate = datetime.now()
+        if sourcename != '':
+            print(f' BP Source: {sourcename}')
+            sourcename = f' AND sourceName = "{sourcename}" '
+        query = f'''
+SELECT DISTINCT
+  s.startDate, s.value 'systolic', d.value 'diastolic'
+    FROM
+    (
+      SELECT startDate, type, value
+      FROM health_data
+      WHERE
+        type = 'HKQuantityTypeIdentifierBloodPressureSystolic' {sourcename}
+    ) s
+    JOIN
+    (
+        SELECT startDate, type, value
+        FROM health_data
+        WHERE
+            type = 'HKQuantityTypeIdentifierBloodPressureDiastolic' {sourcename}
+    ) d
+    ON
+        s.startDate = d.startDate AND s.startDate >= '{startdate}' AND s.startDate <= '{enddate}'
+    ORDER BY s.startDate
+'''
+        statement = text(query)
+        with self._open_session() as session:
+            n = session.execute(statement)
+            rows = []
+            for r in n:
+                cdate = datetime.strptime(r[0], '%Y-%m-%d %H:%M:%S.000000')
+                d = {'startDate': cdate, 'systolic': r[1], 'diastolic': r[2]}
+                rows.append(d)
+            return rows
 
     def insert_records(self, records, callback=None):
         with self._open_session() as session:

@@ -164,9 +164,10 @@ class AppleHealthTool(GuiApp):
             print(f'Most recent: {self._database.latest_record()}')
 
             bp_report = self._database.get_blood_pressure_report()
+            print('[')
             for row in bp_report:
-                print(f'row: {row["date"]} : {row["systolic"]:3}/{row["diastolic"]}')
-
+                print(f'{{"date": datetime.strptime("{row["date"]}", "%Y-%m-%d %H:%M:%S.000000"), "systolic": {row["systolic"]}, "diastolic": {row["diastolic"]}}},')
+            print(']')
                 # NOTE date is just a str
 
     def open_database(self, path):
