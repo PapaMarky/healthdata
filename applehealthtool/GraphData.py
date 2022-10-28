@@ -2,35 +2,96 @@ import datetime
 
 import pygame
 
-
-class DataSeries():
-
-    def __init__(self, rows, x_data_row, y_data_rows,
-                 label='', color=pygame.Color(0, 0, 0), timeseries=False, line_width=1):
+class DataSet():
+    def __init__(self, rows, label='', color=pygame.Color(0, 0, 0)):
         self._data = rows
-
-        self._x_data_row = x_data_row
-        self._y_data_rows = y_data_rows
-        self._label = label
+        self.label = label
         self._color = color
+
+    @property
+    def data_count(self):
+        return len(self._data)
+
+class DataDateRange(DataSet):
+    def __init__(self, rows, x_start_col, x_end_col, type_col,
+                 config,
+                 label='', color=pygame.Color(200, 200, 255), border_color=None, border_width=0
+                 ):
+        super().__init__(rows, label=label, color=color)
+        self.x_start_col = x_start_col
+        self.x_end_col = x_end_col
+        self.type_col = type_col
+        self.config = config
+        for t in self.type_col:
+            if not t in self.config:
+                print(f'WARNING: No entry for {t} in config')
+        self._xmin = self._xmax = self._ymin = self._ymax = None
+        if self.data_count < 1:
+            return
+        self._convert_date_cols()
+
+    def _convert_date_cols(self):
+        if self.data_count < 1:
+            return
+        orig_x_start_col = self.x_start_col + '_orig'
+        orig_x_end_col = self.x_end_col + '_orig'
+        print(f'Rename timestamp row to {orig_x_start_col}')
+        for d in self._data:
+            d[orig_x_start_col] = d[self.x_start_col]
+            d[self.x_start_col] = datetime.datetime.timestamp(d[self.x_start_col])
+            d[orig_x_end_col] = d[self.x_end_col]
+            d[self.x_end_col] = datetime.datetime.timestamp(d[self.x_end_col])
+        self._xmin = float(self._data[0][self.x_start_col])
+        self._xmax = float(self._data[-1][self.x_end_col])
+
+    def __iter__(self):
+        return DataDateRangeIterator(self)
+
+class DataDateRangeIterator():
+    def __init__(self,
+                 rangedata: DataDateRange):
+        self._series = rangedata
+        self._current = 0
+
+    def __next__(self):
+        if self._current < len(self._series._data):
+            row = [
+                self._series._data[self._current][self._series.type_col],
+                self._series._data[self._current][self._series.x_start_col],
+                self._series._data[self._current][self._series.x_end_col],
+            ]
+            self._current += 1
+            return row
+        else:
+            raise StopIteration
+
+
+class DataSeries(DataSet):
+
+    def __init__(self, rows, x_data_col, y_data_cols,
+                 label='', color=pygame.Color(0, 0, 0), timeseries=False, line_width=1):
+        super().__init__(rows, label=label, color=color)
+
+        self._x_data_col = x_data_col
+        self._y_data_cols = y_data_cols
         self._line_width = line_width
         self._xmin = self._xmax = self._ymin = self._ymax = None
-        if len(self._data) < 1:
+        if self.data_count < 1:
             return
         if timeseries:
             # convert dates to integers
-            orig_x_col = x_data_row + '_orig'
+            orig_x_col = x_data_col + '_orig'
             print(f'Rename timestamp row to {orig_x_col}')
             for d in self._data:
-                d[orig_x_col] = d[x_data_row]
-                d[x_data_row] = datetime.datetime.timestamp(d[x_data_row])
+                d[orig_x_col] = d[x_data_col]
+                d[x_data_col] = datetime.datetime.timestamp(d[x_data_col])
                 # print(f' - timestamp: {d[x_data_row]}')
-        self._xmin = float(self._data[0][self._x_data_row])
-        self._xmax = float(self._data[-1][self._x_data_row])
+        self._xmin = float(self._data[0][self._x_data_col])
+        self._xmax = float(self._data[-1][self._x_data_col])
 
-        self._ymin = self._ymax = float(self._data[0][self._y_data_rows[0]])
+        self._ymin = self._ymax = float(self._data[0][self._y_data_cols[0]])
         for row in self._data:
-            for col in self._y_data_rows:
+            for col in self._y_data_cols:
                 d = float(row[col])
                 if d < self._ymin:
                     self._ymin = d
@@ -47,8 +108,8 @@ class DataSeries():
 
         def __next__(self):
             if self._current < len(self._series._data):
-                row = [self._series._data[self._current][self._series._x_data_row]]
-                for y in self._series._y_data_rows:
+                row = [ self._series._data[self._current][self._series._x_data_col] ]
+                for y in self._series._y_data_cols:
                     row.append(self._series._data[self._current][y])
                 self._current += 1
                 return row
@@ -57,10 +118,6 @@ class DataSeries():
 
     def __iter__(self):
         return self.DataSeriesIterator(self)
-
-    @property
-    def data_count(self):
-        return len(self._data)
 
     @property
     def x_minmax(self):
@@ -85,7 +142,7 @@ class DataSeries():
 
     @property
     def y_per_column(self):
-        return len(self._y_data_rows)
+        return len(self._y_data_cols)
 
     @property
     def color(self):
@@ -100,6 +157,22 @@ class DataViewScaler:
         self.view_limits = view_limits
         self.clamp = clamp
 
+    def update_view_limits(self, view_min, view_max):
+        if self.view_limits is None:
+            self.view_limits = [None, None]
+        if self.view_min is None or view_min < self.view_min:
+            self.view_min = view_min
+        if self.view_max is None or view_max > self.view_max:
+            self.view_max = view_max
+
+    def update_data_limits(self, data_min, data_max):
+        if self.data_limits is None:
+            self.data_limits = [None, None]
+        if self.data_min is None or data_min < self.data_min:
+            self.data_min = data_min
+        if self.data_max is None or data_max > self.data_max:
+            self.data_max = data_max
+
     def scale(self, data_value):
         data_value = float(data_value)
         if self.clamp:
@@ -111,14 +184,39 @@ class DataViewScaler:
         return r * (self.view_max - self.view_min) + self.view_min
 
     @property
+    def is_valid(self):
+        if self.data_min is None or self.data_max is None or self.view_min is None or self.view_max is None:
+            return False
+        return True
+
+    @property
     def data_min(self):
         return self.data_limits[0]
+
+    @data_min.setter
+    def data_min(self, value):
+        self.data_limits[0] = value
+
     @property
     def data_max(self):
         return self.data_limits[1]
+
+    @data_max.setter
+    def data_max(self, value):
+        self.data_limits[1] = value
+
     @property
     def view_min(self):
         return self.view_limits[0]
+
+    @view_min.setter
+    def view_min(self, value):
+        self.view_limits[0] = value
+
     @property
     def view_max(self):
         return self.view_limits[1]
+
+    @view_max.setter
+    def view_max(self, value):
+        self.view_limits[1] = value

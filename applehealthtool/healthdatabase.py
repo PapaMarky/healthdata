@@ -86,6 +86,47 @@ class AppleHealthDatabase():
 
             return row
 
+    def get_sleep_report(self, startdate=None, enddate=None, sourcename=''):
+        if not startdate:
+            startdate = datetime.strptime('1970-01-01', "%Y-%m-%d")
+        if not enddate:
+            enddate = datetime.now()
+        if sourcename != '':
+            print(f' HR Source: {sourcename}')
+            sourcename = f' AND sourceName = "{sourcename}" '
+        query = f'''
+SELECT sourceName, creationDate, startDate, endDate, value 
+FROM health_data 
+WHERE type = "HKCategoryTypeIdentifierSleepAnalysis"
+    AND startDate >= "{startdate}" AND endDate <= "{enddate}" AND sourceName = "FitCloudPro"
+    ORDER BY startDate
+'''
+        queryxx = f'''
+SELECT sourceName, creationDate, startDate, endDate, value
+CASE
+    WHEN value = "HKCategoryValueSleepAnalysisInBed" THEN 0
+    WHEN value = "HKCategoryValueSleepAnalysisAsleep" THEN 1
+    WHEN value = "HKCategoryValueSleepAnalysisAwake" THEN 2
+END AS ord
+FROM health_data 
+WHERE type = "HKCategoryTypeIdentifierSleepAnalysis"
+    AND startDate >= "{startdate}" AND endDate <= "{enddate}"
+    ORDER BY startDate, ord
+'''
+        statement = text(query)
+        with self._open_session() as session:
+            n = session.execute(statement)
+            rows = []
+            for r in n:
+                cdate = datetime.strptime(r[1], '%Y-%m-%d %H:%M:%S.000000')
+                sdate = datetime.strptime(r[2], '%Y-%m-%d %H:%M:%S.000000')
+                edate = datetime.strptime(r[3], '%Y-%m-%d %H:%M:%S.000000')
+                d = {'source': r[0],
+                     'creationDate': cdate, 'startDate': sdate, 'endDate': edate,
+                     'value': r[4]}
+                rows.append(d)
+            return rows
+
     def get_heart_rate_report(self, startdate=None, enddate=None, sourcename=''):
         if not startdate:
             startdate = datetime.strptime('1970-01-01', "%Y-%m-%d")

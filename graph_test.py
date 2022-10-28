@@ -5,7 +5,7 @@ import pygame
 from pygame_gui.elements import UIImage
 from pygame_gui_extras.app import GuiApp
 
-from applehealthtool.GraphData import DataSeries
+from applehealthtool.GraphData import DataSeries, DataDateRange
 from applehealthtool.TimeDataGraph import UITimeDataGraph
 from applehealthtool.healthdatabase import AppleHealthDatabase
 
@@ -47,9 +47,6 @@ test_data = [
 
 
 class GraphTestApp(GuiApp):
-    def add_data(self, data_set):
-        self.graph.add_data(data_set)
-
     def __init__(self, size=(1280, 960)):
         super().__init__(size, title='Graph Test Tool')
 
@@ -63,8 +60,22 @@ class GraphTestApp(GuiApp):
             }
         )
 
+    def add_data(self, data_set:DataSeries):
+        self.graph.add_data(data_set)
+
+    def add_sleep_data(self, data:DataDateRange):
+        if data.data_count > 0:
+            self.graph.add_sleep_data(data)
+    def set_date_range(self, startdate, enddate):
+        d = datetime.strptime(startdate, "%Y-%m-%d")
+        date0 = datetime.timestamp(d)
+        d = datetime.strptime(enddate, "%Y-%m-%d")
+        date1 = datetime.timestamp(d)
+        self.graph._xscaler.update_data_limits(date0, date1)
+        print(f'date range: {date0} to {date1}')
+
     def setup(self):
-        self.graph.add_data(data_series)
+        # self.graph.add_data(data_series)
         self.graph.redraw()
 
 DB_PATH = './health.db'
@@ -75,36 +86,56 @@ if __name__ == '__main__':
     app = GraphTestApp()
 
     startdate = '2022-07-03'
-    startdate = '2022-08-09'
-    enddate = '2022-08-15'
+    startdate = '2022-08-08'
+    enddate = '2022-08-10'
+
+    # SLEEP START / END : 2021-08-02 22:46:01.000000|2022-08-15 08:01:00.000000
+    #startdate = '2022-08-09 04:32:00'
+    #enddate = '2022-08-10 14:42:00'
     sourcename = ''
+
     # sourcename = 'FitCloudPro'
+    app.set_date_range(startdate, enddate)
+
     bp_data = database.get_blood_pressure_report(startdate=startdate, enddate=enddate, sourcename=sourcename)
     print(f'** BP Count: {len(bp_data)}')
     if len(bp_data) > 0:
         print(f'** BP Start: {bp_data[0]["startDate"]}')
         print(f'** BP   End: {bp_data[-1]["startDate"]}')
-    data_series = DataSeries(bp_data,
-                             x_data_row='startDate',
-                             y_data_rows=['systolic', 'diastolic'],
+        data_series = DataSeries(bp_data,
+                             x_data_col='startDate',
+                             y_data_cols=['systolic', 'diastolic'],
                              label='blood pressure',
                              timeseries=True,
                              color=pygame.Color(200, 0, 0, 255),
                              line_width=3
                              )
-    app.add_data(data_series)
+        print(f'    BP min/max: {data_series.x_minmax}, {data_series.y_minmax}')
+        app.add_data(data_series)
+
     hr_data = database.get_heart_rate_report(startdate=startdate, enddate=enddate, sourcename=sourcename)
     print(f'** HR Count: {len(hr_data)}')
     if len(hr_data) > 0:
         print(f'** HR Start: {hr_data[0]["startDate"]}')
         print(f'** HR   End: {hr_data[-1]["startDate"]}')
-    hr_series = DataSeries(hr_data,
-                           x_data_row='startDate',
-                           y_data_rows=['heartrate'],
+        hr_series = DataSeries(hr_data,
+                           x_data_col='startDate',
+                           y_data_cols=['heartrate'],
                            label='heart rate',
                            timeseries=True,
                            color=pygame.Color(0, 200, 0, 255),
                            line_width=3)
-    app.add_data(hr_series)
+
+        app.add_data(hr_series)
+
+    sleep_data = database.get_sleep_report(startdate=startdate, enddate=enddate, sourcename=sourcename)
+    print(f'** SLEEP Count: {len(sleep_data)}')
+    if len(sleep_data) > 0:
+        print(f'** SLEEP Start: {sleep_data[0]["startDate"]} to {sleep_data[0]["endDate"]}: {sleep_data[0]["value"]}')
+        print(f'** SLEEP End: {sleep_data[-1]["startDate"]} to {sleep_data[-1]["endDate"]}: {sleep_data[-1]["value"]}')
+    sleep_series = DataDateRange(sleep_data, 'startDate', 'endDate', 'value', {})
+    app.add_sleep_data(sleep_series)
+
+
     app.setup()
     app.run()
