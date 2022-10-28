@@ -80,6 +80,7 @@ class UIGraph(UIImage):
                          anchors=anchors,
                          visible=visible
                          )
+        self._surfaces = {}
         self.recalculate_layout()
         self.redraw()
         # IGraph._list_system_fonts()
@@ -194,7 +195,7 @@ class UIGraph(UIImage):
             return
         top = self._yscaler.view_max
         bottom = self._yscaler.view_min
-        h = bottom - top
+        H = bottom - top
 
         for row in self.sleep_data:
             color = pygame.Color(50, 50, 50, 128)
@@ -203,16 +204,15 @@ class UIGraph(UIImage):
 #           HKCategoryValueSleepAnalysisAwake
             print(f'VAL {row[0]}')
             yoff = 0
-            H = 100
             if row[0] == 'HKCategoryValueSleepAnalysisInBed':
-                color = pygame.Color(200, 200, 255)
+                color = pygame.Color(200, 200, 255, 128)
                 color2 = pygame.Color(0, 0, 128)
             elif row[0] == 'HKCategoryValueSleepAnalysisAwake':
-                color = pygame.Color(255, 255, 200)
+                color = pygame.Color(255, 255, 200, 128)
                 color2 = pygame.Color(128, 128, 0)
                 # yoff = H * 0.5
             elif row[0] == 'HKCategoryValueSleepAnalysisAsleep':
-                color = pygame.Color(200, 255, 200)
+                color = pygame.Color(200, 255, 200, 128)
                 color2 = pygame.Color(0, 128, 0)
                 # yoff = H * 0.75
             left = self._xscaler.scale(row[1])
@@ -243,6 +243,8 @@ class UIGraph(UIImage):
 
         if not self._yscaler.is_valid or not self._xscaler.is_valid:
             return
+
+        ## Part of BP Data
         y0 = self._yscaler.scale(120) # 120 / 80 : "normal" band for BP
         y1 = self._yscaler.scale(80)
         x0 = self._xscaler.view_min
@@ -281,7 +283,11 @@ class UIGraph(UIImage):
         # determine over all x and y min/max, create scalers and pass in to draw functions
         pygame.draw.rect(surface, pygame.Color(250, 250, 250, 255), self.graph_data_rect)
         # pygame.draw.rect(surface, pygame.Color(0, 0, 0, 255), self.graph_data_rect, width=1)
-        self.draw_sleep_data(surface)
+        self._surfaces['sleep'] = pygame.Surface(self.get_relative_rect().size, flags=SRCALPHA)
+
+        self.draw_sleep_data(self._surfaces['sleep'])
+        # blit the sleep data surface
+        surface.blit(self._surfaces['sleep'], (0,0))
         self.draw_data_sets(surface)
 
     def redraw(self):
@@ -289,8 +295,8 @@ class UIGraph(UIImage):
         surface.fill(self._background_color)
         self.draw_title(surface)
         self.draw_graph(surface)
-        self.draw_graph_data(surface)
         self.draw_axis(surface)
+        self.draw_graph_data(surface)
         self.set_image(surface)
 
     @classmethod
