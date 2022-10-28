@@ -105,6 +105,9 @@ class UIGraph(UIImage):
         self.redraw()
         # IGraph._list_system_fonts()
 
+    def save_to_image(self, outpath):
+        pygame.image.save(self.base_surface, outpath)
+
     @property
     def base_surface(self):
         return self.image
