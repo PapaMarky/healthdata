@@ -102,7 +102,7 @@ if __name__ == '__main__':
     if len(bp_data) > 0:
         print(f'** BP Start: {bp_data[0]["startDate"]}')
         print(f'** BP   End: {bp_data[-1]["startDate"]}')
-        data_series = DataSeries(bp_data,
+        data_series = DataSeries('blood pressure', bp_data,
                              x_data_col='startDate',
                              y_data_cols=['systolic', 'diastolic'],
                              label='blood pressure',
@@ -118,7 +118,7 @@ if __name__ == '__main__':
     if len(hr_data) > 0:
         print(f'** HR Start: {hr_data[0]["startDate"]}')
         print(f'** HR   End: {hr_data[-1]["startDate"]}')
-        hr_series = DataSeries(hr_data,
+        hr_series = DataSeries('heart rate', hr_data,
                            x_data_col='startDate',
                            y_data_cols=['heartrate'],
                            label='heart rate',
@@ -133,7 +133,7 @@ if __name__ == '__main__':
     if len(sleep_data) > 0:
         print(f'** SLEEP Start: {sleep_data[0]["startDate"]} to {sleep_data[0]["endDate"]}: {sleep_data[0]["value"]}')
         print(f'** SLEEP End: {sleep_data[-1]["startDate"]} to {sleep_data[-1]["endDate"]}: {sleep_data[-1]["value"]}')
-    sleep_series = DataDateRange(sleep_data, 'startDate', 'endDate', 'value', {})
+    sleep_series = DataDateRange('sleep', sleep_data, 'startDate', 'endDate', 'value', {})
     app.add_sleep_data(sleep_series)
 
 

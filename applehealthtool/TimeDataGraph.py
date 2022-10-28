@@ -95,12 +95,12 @@ class UIGraph(UIImage):
                          anchors=anchors,
                          visible=visible
                          )
-        self._layers = {
-            'title': self.Layer(),
-            'sleep': self.Layer(),
-        }
-        self._layer_order = ('title', 'sleep',)
+        self._layers = {}
+        self._layer_order = ['title', 'graph_bg', 'graph_rect', 'bp_normal', 'axis', 'sleep',]
 
+        for l in self._layer_order:
+            self._layers[l] = self.Layer()
+        # self._layers['bp_normal'].visible = False
         self.recalculate_layout()
         self.redraw()
         # IGraph._list_system_fonts()
@@ -150,6 +150,9 @@ class UIGraph(UIImage):
         self._xscaler.update_data_limits(xmin, xmax)
         ymin, ymax = data_set.y_minmax
         self._yscaler.update_data_limits(ymin, ymax)
+        if not data_set.name in self._layers:
+            self._layer_order.append(data_set.name)
+            self._layers[data_set.name] = self.Layer()
 
     def add_sleep_data(self, sleep_data:DataDateRange):
         self.sleep_data = sleep_data
@@ -205,11 +208,16 @@ class UIGraph(UIImage):
         if self._title_image:
             surface.blit(self._title_image, (self.title_rect.left, self.title_rect.top))
 
-    def draw_graph(self, surface):
+    def draw_graph(self):
         # draw the graph
-        pygame.draw.rect(surface, self._graph_bg_color, self.graph_rect)
+        if not self._layers['graph_bg'].visible:
+            return
+        pygame.draw.rect(self._layers['graph_bg'].surface, self._graph_bg_color, self.graph_rect)
 
-    def draw_axis(self, surface):
+    def draw_axis(self):
+        if not self._layers['axis'].visible:
+            return
+        surface = self._layers['axis'].surface
         start = self.y_axis_rect.topright
         end = self.y_axis_rect.bottomright
         pygame.draw.line(surface, self.axis_color, start, end, self.axis_width)
@@ -252,42 +260,31 @@ class UIGraph(UIImage):
             pygame.draw.rect(surface, color, r)
             #pygame.draw.rect(surface, color2, r, width=1)
 
-    def draw_data_sets(self, surface):
+    def draw_data_sets(self):
         if len(self.data_sets) < 1:
             return
-#       (xmin, xmax) = self.data_sets[0].x_minmax
-#       (ymin, ymax) = self.data_sets[0].y_minmax
-#       for ds in self.data_sets:
-#           if ds.data_count < 1:
-#               continue
-#           (xmin1, xmax1) = ds.x_minmax
-#           if xmin1 < xmin:
-#               xmin = xmin1
-#           if xmax1 > xmax:
-#               xmax = xmax1
-#           (ymin1, ymax1) = ds.y_minmax
-#           if ymin1 < ymin:
-#               ymin = ymin1
-#           if ymax1 > ymax:
-#               ymax = ymax1
 
         if not self._yscaler.is_valid or not self._xscaler.is_valid:
             return
 
         ## Part of BP Data
-        y0 = self._yscaler.scale(120) # 120 / 80 : "normal" band for BP
-        y1 = self._yscaler.scale(80)
-        x0 = self._xscaler.view_min
-        x1 = self._xscaler.view_max
-        # on the screen zero is top so we put the max world y (200) first to flip the graph
-        r = pygame.Rect(x0, y0, x1 - x0, y1 - y0)
-        #pygame.draw.rect(surface, pygame.Color(200, 255, 200, 10), r)
-        pygame.draw.line(surface, pygame.Color(255, 0, 0, 255),
-                         (x0, y0), (x1, y0))
-        pygame.draw.line(surface, pygame.Color(0, 0, 200, 255),
-                         (x0, y1), (x1, y1))
+        if self._layers['bp_normal'].visible:
+            surface = self._layers['bp_normal'].surface
+            y0 = self._yscaler.scale(120) # 120 / 80 : "normal" band for BP
+            y1 = self._yscaler.scale(80)
+            x0 = self._xscaler.view_min
+            x1 = self._xscaler.view_max
+            # on the screen zero is top so we put the max world y (200) first to flip the graph
+            r = pygame.Rect(x0, y0, x1 - x0, y1 - y0)
+            pygame.draw.rect(surface, pygame.Color(200, 255, 200, 128), r)
+            #pygame.draw.rect(surface, pygame.Color(255, 0, 0, 255), r, width=1)
+            pygame.draw.line(surface, pygame.Color(0, 255, 0, 255), (x0, y0), (x1, y0))
+            pygame.draw.line(surface, pygame.Color(0, 255, 0, 255), (x0, y1), (x1, y1))
         for ds in self.data_sets:
-            print(f'DS: {ds}')
+            ds_name = ds.name
+            if not self._layers[ds_name].visible:
+                continue
+            print(f'DS: {ds.name}')
             lines = []
             ycount = ds.y_per_column
             for y in range(ycount):
@@ -307,9 +304,13 @@ class UIGraph(UIImage):
 
             for line in lines:
                 if len(line) > 1:
-                    pygame.draw.lines(surface, ds.color, False, line, width=ds.line_width)
+                    pygame.draw.lines(self._layers[ds.name].surface, ds.color, False, line, width=ds.line_width)
 
-    def draw_graph_data(self, surface):
+    def draw_graph_data(self):
+        if not self._layers['graph_rect'].visible:
+            return
+        surface = self._layers['graph_rect'].surface
+
         # determine over all x and y min/max, create scalers and pass in to draw functions
         ## TODO Make "draw_sleep_data" function
         pygame.draw.rect(surface, pygame.Color(250, 250, 250, 255), self.graph_data_rect)
@@ -319,12 +320,12 @@ class UIGraph(UIImage):
         self.draw_sleep_data_layer()
         # blit the sleep data surface
         # surface.blit(self._layers['sleep'].surface, (0,0))
-        self.draw_data_sets(surface)
+        self.draw_data_sets()
 
     def redraw(self):
         surface = self.base_surface
         if not surface:
-            print(f'Creating missing surface')
+            print(f'Creating missing base surface')
             pygame.Surface(self.get_relative_rect().size, flags=SRCALPHA)
         surface.fill(self._background_color)
         for l in self._layer_order:
@@ -334,9 +335,9 @@ class UIGraph(UIImage):
                 self._layers[l].surface = pygame.Surface(self.get_relative_rect().size, flags=SRCALPHA)
 
         self.draw_title_layer()
-        self.draw_graph(surface)
-        self.draw_axis(surface)
-        self.draw_graph_data(surface)
+        self.draw_graph()
+        self.draw_axis()
+        self.draw_graph_data()
 
         for layer in self._layer_order:
             if self._layers[layer].visible:
