@@ -27,6 +27,21 @@ class UIGraph(UIImage):
             }
         }
     }
+    class Layer:
+        def __init__(self, visible=True):
+            self._surface = None
+            self.visible = visible
+        def blit(self, target:pygame.Surface):
+            if self.visible and self.surface:
+                target.blit(self.surface, (0,0))
+        @property
+        def surface(self):
+            return self._surface
+
+        @surface.setter
+        def surface(self, new_surface:pygame.Surface):
+            self._surface = new_surface
+
     def __init__(self,
                  relative_rect: pygame.Rect,
                  manager: IUIManagerInterface,
@@ -80,10 +95,19 @@ class UIGraph(UIImage):
                          anchors=anchors,
                          visible=visible
                          )
-        self._surfaces = {}
+        self._layers = {
+            'title': self.Layer(),
+            'sleep': self.Layer(),
+        }
+        self._layer_order = ('title', 'sleep',)
+
         self.recalculate_layout()
         self.redraw()
         # IGraph._list_system_fonts()
+
+    @property
+    def base_surface(self):
+        return self.image
 
     @property
     def top_margin(self):
@@ -173,8 +197,11 @@ class UIGraph(UIImage):
         self._yscaler.view_min = self.graph_data_rect.bottom
         self._yscaler.view_max = self.graph_data_rect.top
 
-    def draw_title(self, surface):
+    def draw_title_layer(self):
         # draw the title
+        if not self._layers['title'].visible:
+            return
+        surface = self._layers['title'].surface
         if self._title_image:
             surface.blit(self._title_image, (self.title_rect.left, self.title_rect.top))
 
@@ -190,7 +217,10 @@ class UIGraph(UIImage):
         end = self.x_axis_rect.topright
         pygame.draw.line(surface, self.axis_color, start, end, self.axis_width)
 
-    def draw_sleep_data(self, surface):
+    def draw_sleep_data_layer(self):
+        if not self._layers['sleep'].visible:
+            return
+        surface = self._layers['sleep'].surface
         if self.sleep_data is None:
             return
         top = self._yscaler.view_max
@@ -281,23 +311,36 @@ class UIGraph(UIImage):
 
     def draw_graph_data(self, surface):
         # determine over all x and y min/max, create scalers and pass in to draw functions
+        ## TODO Make "draw_sleep_data" function
         pygame.draw.rect(surface, pygame.Color(250, 250, 250, 255), self.graph_data_rect)
         # pygame.draw.rect(surface, pygame.Color(0, 0, 0, 255), self.graph_data_rect, width=1)
-        self._surfaces['sleep'] = pygame.Surface(self.get_relative_rect().size, flags=SRCALPHA)
 
-        self.draw_sleep_data(self._surfaces['sleep'])
+
+        self.draw_sleep_data_layer()
         # blit the sleep data surface
-        surface.blit(self._surfaces['sleep'], (0,0))
+        # surface.blit(self._layers['sleep'].surface, (0,0))
         self.draw_data_sets(surface)
 
     def redraw(self):
-        surface = pygame.Surface(self.get_relative_rect().size, flags=SRCALPHA)
+        surface = self.base_surface
+        if not surface:
+            print(f'Creating missing surface')
+            pygame.Surface(self.get_relative_rect().size, flags=SRCALPHA)
         surface.fill(self._background_color)
-        self.draw_title(surface)
+        for l in self._layer_order:
+            if not l in self._layers:
+                self._layers[l] = self.Layer()
+            if self._layers[l].visible:
+                self._layers[l].surface = pygame.Surface(self.get_relative_rect().size, flags=SRCALPHA)
+
+        self.draw_title_layer()
         self.draw_graph(surface)
         self.draw_axis(surface)
         self.draw_graph_data(surface)
-        self.set_image(surface)
+
+        for layer in self._layer_order:
+            if self._layers[layer].visible:
+                self._layers[layer].blit(self.base_surface)
 
     @classmethod
     def _list_system_fonts(cls):
