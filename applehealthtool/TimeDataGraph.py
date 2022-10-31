@@ -9,6 +9,121 @@ from pygame_gui.elements import UIImage
 
 from applehealthtool.GraphData import DataViewScaler, DataSet, DataSeries, DataDateRangeIterator, DataDateRange
 
+class BadArgException(Exception):
+    def __init__(self, message='Bad Argument'):
+        super().__init__(message)
+class BadOffsetException(BadArgException):
+    def __init__(self):
+        super(BadOffsetException, self).__init__('Offset must be list or tuple with exactly two elements')
+
+class GraphLayer:
+    def __init__(self, visible=True, offset=(0,0)):
+        self._surface = None
+        self.visible = visible
+        self.dirty = True
+        self._offset = offset
+
+    def blit(self, target:pygame.Surface):
+        if self.visible and self.surface:
+            target.blit(self.surface, self._offset)
+
+    def redraw(self, base_surface:pygame.Surface):
+        '''
+        Update the Layer's surface (if necessary) and blit onto target surface.
+        :param base_surface:
+        :return:
+        '''
+        if self.visible:
+            if self.dirty:
+                self.update()
+            self.blit(base_surface)
+
+    def update(self):
+        pass # overload this function
+
+    @property
+    def ready_to_draw(self):
+        return self.surface and self.visible and self.dirty
+
+    @property
+    def offset(self):
+        return self._offset
+
+    @offset.setter
+    def offset(self, offset):
+        if offset is None:
+            offset = (0, 0)
+        # TODO make sure it's a list / tuple of len 2
+        print(f'OFFSET: {offset}, TYPE: {type(offset)}')
+        if not (type(offset) is list or type(offset) is tuple):
+            raise BadOffsetException()
+        if len(offset) != 2:
+            raise BadOffsetException()
+        self._offset = offset
+
+    @property
+    def surface(self):
+        return self._surface
+
+    @surface.setter
+    def surface(self, new_surface:pygame.Surface):
+        self._surface = new_surface
+        self.dirty = True
+
+
+class TextLayer(GraphLayer):
+    def __init__(self, text:str, font_name:str= '', visible=True, font_size:int=10, color:pygame.Color=None, offset:Union[tuple, list, None]=None):
+        super(TextLayer, self).__init__(offset=offset, visible=visible)
+        self.offset = offset
+        self._text:str = ''
+        self.text = text
+        self.color = color if color is not None else pygame.Color(0, 0, 0, 255)
+        self._font:pygame.font = None
+        self._image:pygame.surface = None
+        self.set_font(font_name, font_size)
+
+    @property
+    def text(self):
+        return self._text
+
+    @text.setter
+    def text(self, text):
+        self._text = text
+        self.dirty = True
+
+    def set_font(self, name:str, size:int):
+        pygame.font.init()
+        self._font = pygame.font.SysFont(name, size)
+        self.dirty = True
+
+    def update(self):
+        if self.visible and self.dirty:
+            image = self._font.render(self.text, True, self.color)
+            self._surface = premul_alpha_surface(image)
+            self.dirty = False
+
+class DataSetLayer(GraphLayer):
+    def __init__(self, data_set:DataSet):
+        super(DataSetLayer, self).__init__()
+        self.data_set = data_set
+
+    @property
+    def name(self):
+        if self.data_set:
+            return self.data_set.name
+        return None
+
+class DataSeriesLayer(DataSetLayer):
+    def __init__(self, data_set):
+        if not isinstance(data_set, DataSeries):
+            raise Exception('DataSeriesLayer data_set must be DataSeries instance')
+        super(DateRangeDataLayer, self).__init__(data_set)
+
+class DateRangeDataLayer(DataSetLayer):
+    def __init__(self, data_set):
+        if not isinstance(data_set, DataDateRange):
+            raise Exception('DateRangeDataLayer data_set must be DataDateRange instance')
+        super(DateRangeDataLayer, self).__init__(data_set)
 
 class UIGraph(UIImage):
     DEFAULT_CONFIG = {
@@ -27,20 +142,6 @@ class UIGraph(UIImage):
             }
         }
     }
-    class Layer:
-        def __init__(self, visible=True):
-            self._surface = None
-            self.visible = visible
-        def blit(self, target:pygame.Surface):
-            if self.visible and self.surface:
-                target.blit(self.surface, (0,0))
-        @property
-        def surface(self):
-            return self._surface
-
-        @surface.setter
-        def surface(self, new_surface:pygame.Surface):
-            self._surface = new_surface
 
     def __init__(self,
                  relative_rect: pygame.Rect,
@@ -56,16 +157,13 @@ class UIGraph(UIImage):
                  title_text_color = None,
                  axis_width = None,
                  axis_color = None,
-                 graph_background = None,
-                 data=None
+                 graph_background = None
                  ):
         self.data_sets = []
+        self._layer_list = []
         self.sleep_data = None
         self._xscaler = DataViewScaler([None, None], [None, None])
         self._yscaler = DataViewScaler([0, 200], [None, None])
-        if data is not None:
-            for d in data:
-                self.add_data(d)
 
         self.background_color = UIGraph.DEFAULT_CONFIG['background_color']
         self._margin = self.DEFAULT_CONFIG['margin']
@@ -77,10 +175,14 @@ class UIGraph(UIImage):
         if title_text_color is None:
             self._title_text_color = self.DEFAULT_CONFIG['title']['text_color']
 
+        self.title_layer = TextLayer(title, font_name=title_font_name, font_size=title_font_size, color=title_text_color)
+        self.title_layer.update() # need to create text surface before recalulate_layout
+        self.add_layer(self.title_layer)
+
         if graph_background is None:
             self._graph_bg_color = self.DEFAULT_CONFIG['graph']['background_color']
 
-        self.set_title_font(title_font_name, title_font_size)
+        # self.set_title_font(title_font_name, title_font_size)
 
         self.axis_color = self.DEFAULT_CONFIG['graph']['axis']['color'] if axis_color is None else axis_color
         self.axis_width = self.DEFAULT_CONFIG['graph']['axis']['width'] if axis_width is None else axis_width
@@ -96,10 +198,10 @@ class UIGraph(UIImage):
                          visible=visible
                          )
         self._layers = {}
-        self._layer_order = ['title', 'graph_bg', 'graph_rect', 'bp_normal', 'axis', 'sleep',]
+        self._layer_order = ['graph_bg', 'graph_rect', 'bp_normal', 'axis', 'sleep',]
 
         for l in self._layer_order:
-            self._layers[l] = self.Layer()
+            self._layers[l] = GraphLayer()
         # self._layers['bp_normal'].visible = False
         self.recalculate_layout()
         self.redraw()
@@ -147,6 +249,9 @@ class UIGraph(UIImage):
         self._title_image = premul_alpha_surface(self._title_image)
         print(f'title img: {self._title_image}, color: {self.background_color}')
 
+    def add_layer(self, layer:GraphLayer):
+        self._layer_list.append(layer)
+
     def add_data(self, data_set:DataSeries):
         self.data_sets.append(data_set)
         xmin, xmax = data_set.x_minmax
@@ -155,7 +260,7 @@ class UIGraph(UIImage):
         self._yscaler.update_data_limits(ymin, ymax)
         if not data_set.name in self._layers:
             self._layer_order.append(data_set.name)
-            self._layers[data_set.name] = self.Layer()
+            self._layers[data_set.name] = GraphLayer()
 
     def add_sleep_data(self, sleep_data:DataDateRange):
         self.sleep_data = sleep_data
@@ -165,11 +270,12 @@ class UIGraph(UIImage):
         screen_width, screen_height = self.get_relative_rect().size
 
         # for now, title is centered horizontally, top aligned vertically
-        w = self._title_image.get_width()
-        h = self._title_image.get_height()
+        w = self.title_layer.surface.get_width()
+        h = self.title_layer.surface.get_height()
         x = self.left_margin + screen_width / 2 - w / 2
         y = self.top_margin
         self.title_rect = pygame.Rect(x, y, w, h)
+        self.title_layer.offset = (x, y)
 
         # graph box
         w = screen_width - self.left_margin - self.right_margin
@@ -270,6 +376,7 @@ class UIGraph(UIImage):
         if not self._yscaler.is_valid or not self._xscaler.is_valid:
             return
 
+
         ## Part of BP Data
         if self._layers['bp_normal'].visible:
             surface = self._layers['bp_normal'].surface
@@ -317,8 +424,6 @@ class UIGraph(UIImage):
         # determine over all x and y min/max, create scalers and pass in to draw functions
         ## TODO Make "draw_sleep_data" function
         pygame.draw.rect(surface, pygame.Color(250, 250, 250, 255), self.graph_data_rect)
-        # pygame.draw.rect(surface, pygame.Color(0, 0, 0, 255), self.graph_data_rect, width=1)
-
 
         self.draw_sleep_data_layer()
         # blit the sleep data surface
@@ -333,11 +438,14 @@ class UIGraph(UIImage):
         surface.fill(self._background_color)
         for l in self._layer_order:
             if not l in self._layers:
-                self._layers[l] = self.Layer()
+                self._layers[l] = GraphLayer()
             if self._layers[l].visible:
                 self._layers[l].surface = pygame.Surface(self.get_relative_rect().size, flags=SRCALPHA)
 
-        self.draw_title_layer()
+        for layer in self._layer_list:
+            layer.redraw(self.base_surface)
+
+        # self.draw_title_layer()
         self.draw_graph()
         self.draw_axis()
         self.draw_graph_data()
@@ -363,8 +471,7 @@ class UITimeDataGraph(UIGraph):
                  object_id: Union[ObjectID, str, None] = None,
                  anchors: Dict[str, str] = None,
                  visible: int = 1,
-                 title='',
-                 data=None
+                 title=''
                  ):
         super().__init__(relative_rect,
                        manager,
@@ -373,6 +480,5 @@ class UITimeDataGraph(UIGraph):
                        object_id=object_id,
                        anchors=anchors,
                        visible=visible,
-                       title=title,
-                       data=data
+                       title=title
                        )
