@@ -104,8 +104,8 @@ class TextLayer(GraphLayer):
 
 
 class BackgroundLayer(GraphLayer):
-    def __init__(self, size, bg_color:pygame.Color, xscaler:DataViewScaler, yscaler:DataViewScaler):
-        super(BackgroundLayer, self).__init__()
+    def __init__(self, size, bg_color:pygame.Color, xscaler:DataViewScaler, yscaler:DataViewScaler, offset=(0,0)):
+        super(BackgroundLayer, self).__init__(offset=offset)
         self.bg_color = bg_color
         self._xscaler = xscaler
         self._yscaler = yscaler
@@ -240,7 +240,7 @@ class UIGraph(UIImage):
         self._xscaler = DataViewScaler([None, None], [None, None])
         self._yscaler = DataViewScaler([0, 200], [None, None])
 
-        self.background_color = UIGraph.DEFAULT_CONFIG['background_color']
+        self._background_color = UIGraph.DEFAULT_CONFIG['background_color']
         self._margin = self.DEFAULT_CONFIG['margin']
         self._title = title
         if title_font_name is None:
@@ -273,10 +273,11 @@ class UIGraph(UIImage):
         self.title_layer.update() # need to create text surface before recalulate_layout
         self.add_layer(self.title_layer)
 
-        self.background_layer = BackgroundLayer(self.get_relative_rect().size, pygame.Color(255, 128, 128, 128), self._xscaler, self._yscaler)
+        self.calculate_graph_rect()
+        origin = self.graph_rect.topleft
+        self.background_layer = BackgroundLayer(self.graph_rect.size, pygame.Color(255, 128, 128, 128), self._xscaler, self._yscaler, offset=origin)
         self.add_layer(self.background_layer)
 
-        self.calculate_graph_rect()
         self.axis_layer = AxisLayer(self.get_relative_rect().size, self.axis_color, self.axis_width, self._xscaler, self._yscaler, self.graph_rect)
         self.add_layer(self.axis_layer)
         self.axis_layer.recalculate_layout()
@@ -305,28 +306,6 @@ class UIGraph(UIImage):
     def right_margin(self):
         return self._margin
 
-    @property
-    def background_color(self):
-        return self._background_color
-
-    @background_color.setter
-    def background_color(self, color):
-        self._background_color = color
-
-#    @property
-#    def title_font(self):
-#        return self._title_font
-#
-#    def set_title_font(self, font_name, font_size):
-#        pygame.font.init()
-#        print(f'title font is {font_name} / {font_size}')
-#        font_name = pygame.font.SysFont(font_name, font_size)
-#        self._title_font = font_name
-#        # pre render the title
-#        self._title_image = self._title_font.render(self._title, True, self._title_text_color) # self.background_color)
-#        self._title_image = premul_alpha_surface(self._title_image)
-#        print(f'title img: {self._title_image}, color: {self.background_color}')
-#
     def add_layer(self, layer:GraphLayer):
         self._layer_list.append(layer)
 
