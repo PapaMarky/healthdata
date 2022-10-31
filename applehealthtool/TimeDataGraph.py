@@ -195,10 +195,33 @@ class DataSeriesLayer(DataSetLayer):
                 pygame.draw.lines(self.surface, ds.color, False, line, width=ds.line_width)
 
 class DateRangeDataLayer(DataSetLayer):
-    def __init__(self, data_set, size):
+    def __init__(self, data_set, size, xscaler:DataViewScaler, yscaler:DataViewScaler, type_color_map:dict, type_row:int ):
         if not isinstance(data_set, DataDateRange):
             raise Exception('DateRangeDataLayer data_set must be DataDateRange instance')
-        super(DateRangeDataLayer, self).__init__(data_set, size)
+        self.type_row = type_row
+        self.type_color_map = type_color_map
+        super(DateRangeDataLayer, self).__init__(data_set, size, xscaler, yscaler)
+
+    def update(self):
+        super().update()
+        if not self.visible or not self.dirty:
+            return
+
+        top = self._yscaler.view_max
+        bottom = self._yscaler.view_min
+        H = bottom - top
+        yoff = 0
+        for row in self.data_set:
+            color = pygame.Color(255, 0, 255, 255)
+            if row[self.type_row] in self.type_color_map:
+                color = self.type_color_map[row[self.type_row]]
+
+            left = self._xscaler.scale(row[1])
+            right = self._xscaler.scale(row[2])
+            w = right - left
+            r = pygame.Rect(left, bottom - yoff - H, w, H)
+            pygame.draw.rect(self.surface, color, r)
+
 
 class UIGraph(UIImage):
     DEFAULT_CONFIG = {
@@ -275,7 +298,7 @@ class UIGraph(UIImage):
 
         self.calculate_graph_rect()
         origin = self.graph_rect.topleft
-        self.background_layer = BackgroundLayer(self.graph_rect.size, pygame.Color(255, 128, 128, 128), self._xscaler, self._yscaler, offset=origin)
+        self.background_layer = BackgroundLayer(self.graph_rect.size, pygame.Color(200, 200, 200, 255), self._xscaler, self._yscaler, offset=origin)
         self.add_layer(self.background_layer)
 
         self.axis_layer = AxisLayer(self.get_relative_rect().size, self.axis_color, self.axis_width, self._xscaler, self._yscaler, self.graph_rect)
@@ -323,7 +346,14 @@ class UIGraph(UIImage):
     def add_sleep_data(self, sleep_data:DataDateRange):
         self.sleep_data = sleep_data
         self._xscaler.update_data_limits(sleep_data._xmin, sleep_data._xmax)
-
+        TYPE_ROW=0
+        type_color_map = {
+            'HKCategoryValueSleepAnalysisInBed': pygame.Color(200, 200, 255, 128),
+            'HKCategoryValueSleepAnalysisAwake': pygame.Color(255, 255, 200, 128),
+            'HKCategoryValueSleepAnalysisAsleep': pygame.Color(200, 255, 200, 128)
+        }
+        layer = DateRangeDataLayer(sleep_data, self.get_relative_rect().size, self._xscaler, self._yscaler, type_color_map, TYPE_ROW)
+        self.add_layer(layer)
         for layer in self._layer_list:
             # If we update the scalers, we need to mark all of the layers as dirty
             layer.dirty = True
