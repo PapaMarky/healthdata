@@ -2,8 +2,7 @@ import datetime
 
 import pygame
 
-
-class DataSet:
+class DataSet():
     def __init__(self, name, rows, label='', color=pygame.Color(0, 0, 0)):
         self.name = name
         self._data = rows
@@ -13,17 +12,11 @@ class DataSet:
     @property
     def data_count(self):
         return len(self._data)
-    
-    def get_row(self, index):
-        if index < 0 or index >= len(self._data):
-            return None
-        return self._data[index]
-
 
 class DataDateRange(DataSet):
     def __init__(self, name, rows, x_start_col, x_end_col, type_col,
                  config,
-                 label='', color=pygame.Color(200, 200, 255)
+                 label='', color=pygame.Color(200, 200, 255), border_color=None, border_width=0
                  ):
         super().__init__(name, rows, label=label, color=color)
         self.x_start_col = x_start_col
@@ -31,9 +24,9 @@ class DataDateRange(DataSet):
         self.type_col = type_col
         self.config = config
         for t in self.type_col:
-            if t not in self.config:
+            if not t in self.config:
                 print(f'WARNING: No entry for {t} in config')
-        self._minimum_x = self._maximum_x = self._minimum_y = self._maximum_y = None
+        self._xmin = self._xmax = self._ymin = self._ymax = None
         if self.data_count < 1:
             return
         self._convert_date_cols()
@@ -49,42 +42,24 @@ class DataDateRange(DataSet):
             d[self.x_start_col] = datetime.datetime.timestamp(d[self.x_start_col])
             d[orig_x_end_col] = d[self.x_end_col]
             d[self.x_end_col] = datetime.datetime.timestamp(d[self.x_end_col])
-        self._minimum_x = float(self._data[0][self.x_start_col])
-        self._maximum_x = float(self._data[-1][self.x_end_col])
+        self._xmin = float(self._data[0][self.x_start_col])
+        self._xmax = float(self._data[-1][self.x_end_col])
 
-    @property
-    def minimum_x(self):
-        return self._minimum_x
-
-    @property
-    def minimum_y(self):
-        return self._minimum_y
-
-    @property
-    def maximum_x(self):
-        return self._maximum_x
-
-    @property
-    def maximum_y(self):
-        return self._maximum_y
-
-    @property
     def __iter__(self):
         return DataDateRangeIterator(self)
 
-
-class DataDateRangeIterator:
+class DataDateRangeIterator():
     def __init__(self,
-                 range_data: DataDateRange):
-        self._series: DataDateRange = range_data
+                 rangedata: DataDateRange):
+        self._series = rangedata
         self._current = 0
 
     def __next__(self):
-        if self._current < self._series.data_count:
+        if self._current < len(self._series._data):
             row = [
-                self._series.get_row(self._current)[self._series.type_col],
-                self._series.get_row(self._current)[self._series.x_start_col],
-                self._series.get_row(self._current)[self._series.x_end_col],
+                self._series._data[self._current][self._series.type_col],
+                self._series._data[self._current][self._series.x_start_col],
+                self._series._data[self._current][self._series.x_end_col],
             ]
             self._current += 1
             return row
@@ -101,7 +76,7 @@ class DataSeries(DataSet):
         self._x_data_col = x_data_col
         self._y_data_cols = y_data_cols
         self._line_width = line_width
-        self._minimum_x = self._maximum_x = self._minimum_y = self._maximum_y = None
+        self._xmin = self._xmax = self._ymin = self._ymax = None
         if self.data_count < 1:
             return
         if timeseries:
@@ -112,47 +87,31 @@ class DataSeries(DataSet):
                 d[orig_x_col] = d[x_data_col]
                 d[x_data_col] = datetime.datetime.timestamp(d[x_data_col])
                 # print(f' - timestamp: {d[x_data_row]}')
-        self._minimum_x = float(self._data[0][self._x_data_col])
-        self._maximum_x = float(self._data[-1][self._x_data_col])
+        self._xmin = float(self._data[0][self._x_data_col])
+        self._xmax = float(self._data[-1][self._x_data_col])
 
-        self._minimum_y = self._maximum_y = float(self._data[0][self._y_data_cols[0]])
+        self._ymin = self._ymax = float(self._data[0][self._y_data_cols[0]])
         for row in self._data:
             for col in self._y_data_cols:
                 d = float(row[col])
-                if d < self._minimum_y:
-                    self._minimum_y = d
-                if d > self._maximum_y:
-                    self._maximum_y = d
+                if d < self._ymin:
+                    self._ymin = d
+                if d > self._ymax:
+                    self._ymax = d
 
-        print(f'   x min/max: {self._minimum_x} / {self._maximum_x}')
-        print(f'data min/max: {self._minimum_y} / {self._maximum_y}')
+        print(f'   x min/max: {self._xmin} / {self._xmax}')
+        print(f'data min/max: {self._ymin} / {self._ymax}')
 
-    @property
-    def minimum_x(self):
-        return self._minimum_x
-
-    @property
-    def minimum_y(self):
-        return self._minimum_y
-
-    @property
-    def maximum_x(self):
-        return self._maximum_x
-
-    @property
-    def maximum_y(self):
-        return self._maximum_y
-
-    class DataSeriesIterator:
-        def __init__(self, data_series):
-            self._series: DataSeries = data_series
+    class DataSeriesIterator():
+        def __init__(self, dataseries):
+            self._series = dataseries
             self._current = 0
 
         def __next__(self):
-            if self._current < self._series.data_count:
-                row = [self._series.get_row(self._current)[self._series._x_data_col]]
+            if self._current < len(self._series._data):
+                row = [ self._series._data[self._current][self._series._x_data_col] ]
                 for y in self._series._y_data_cols:
-                    row.append(self._series.get_row(self._current)[y])
+                    row.append(self._series._data[self._current][y])
                 self._current += 1
                 return row
             else:
@@ -163,27 +122,24 @@ class DataSeries(DataSet):
 
     @property
     def x_minmax(self):
-        return self._minimum_x, self._maximum_x
-    
+        return (self._xmin, self._xmax)
     @property
     def y_minmax(self):
-        return self._minimum_y, self._maximum_y
+        return (self._ymin, self._ymax)
 
     @property
     def x_min(self):
-        return self._minimum_x
-    
+        return self._xmin
     @property
     def x_max(self):
-        return self._maximum_x
+        return self._xmax
 
     @property
     def y_min(self):
-        return self._minimum_y
-    
+        return self._ymin
     @property
     def y_max(self):
-        return self._maximum_y
+        return self._ymax
 
     @property
     def y_per_column(self):
@@ -192,11 +148,9 @@ class DataSeries(DataSet):
     @property
     def color(self):
         return self._color
-    
     @property
     def line_width(self):
         return self._line_width
-
 
 class DataViewScaler:
     def __init__(self, data_limits, view_limits, clamp=False):
