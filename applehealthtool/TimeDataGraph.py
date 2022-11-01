@@ -7,7 +7,8 @@ from pygame_gui.core.interfaces import IUIManagerInterface
 from pygame_gui.core.utility import premul_alpha_surface
 from pygame_gui.elements import UIImage
 
-from applehealthtool.GraphData import DataViewScaler, DataSet, DataSeries, DataDateRangeIterator, DataDateRange
+from applehealthtool.GraphData import DataViewScaler, DataSet, DataSeries, DataDateRange
+
 
 class BadArgException(Exception):
     def __init__(self, message='Bad Argument'):
@@ -120,6 +121,24 @@ class BackgroundLayer(GraphLayer):
         if self.surface:
             self.surface.fill(self.bg_color)
 
+class BPRangeLayer(BackgroundLayer):
+    def __init__(self,size, color:pygame.Color, xscaler:DataViewScaler, yscaler:DataViewScaler):
+        super(BPRangeLayer, self).__init__(size, color, xscaler, yscaler)
+
+    def update(self):
+        self.update_surface()
+        if not self.dirty or not self.visible:
+            return
+        y0 = self._yscaler.scale(120) # 120 / 80 : "normal" range for BP
+        y1 = self._yscaler.scale(80)
+        x0 = self._xscaler.view_min
+        x1 = self._xscaler.view_max
+        # on the screen zero is top so we put the max world y (200) first to flip the graph
+        r = pygame.Rect(x0, y0, x1 - x0, y1 - y0)
+        pygame.draw.rect(self.surface, pygame.Color(200, 255, 200, 128), r)
+        pygame.draw.line(self.surface, pygame.Color(0, 255, 0, 255), (x0, y0), (x1, y0))
+        pygame.draw.line(self.surface, pygame.Color(0, 255, 0, 255), (x0, y1), (x1, y1))
+
 class AxisLayer(BackgroundLayer):
     def __init__(self, size, color:pygame.Color, width:int, xscaler:DataViewScaler, yscaler:DataViewScaler, graph_rect):
         super(AxisLayer, self).__init__(size, pygame.Color(0,0,0,0), xscaler=xscaler, yscaler=yscaler)
@@ -172,19 +191,18 @@ class DataSeriesLayer(DataSetLayer):
 
     def update(self):
         super().update()
-        ds = self.data_set
         lines = []
-        ycount = ds.y_per_column
+        ycount = self.data_set.y_per_column
         for y in range(ycount):
             print(f'Start Empty Line: {y}')
             lines.append([])
 
-        if ds.data_count > 0:
-            print(f'First Row: {ds._data[0]["startDate"]}')
-            print(f' Last Row: {ds._data[-1]["startDate"]}')
+        if self.data_set.data_count > 0:
+            print(f'First Row: {self.data_set._data[0]["startDate"]}')
+            print(f' Last Row: {self.data_set._data[-1]["startDate"]}')
         else:
             print(f'NO DATA')
-        for row in ds:
+        for row in self.data_set:
             x = self._xscaler.scale(float(row[0]))
             for i in range(ycount):
                 y = self._yscaler.scale(float(row[i + 1]))
@@ -192,7 +210,7 @@ class DataSeriesLayer(DataSetLayer):
 
         for line in lines:
             if len(line) > 1:
-                pygame.draw.lines(self.surface, ds.color, False, line, width=ds.line_width)
+                pygame.draw.lines(self.surface, self.data_set.color, False, line, width=self.data_set.line_width)
 
 class DateRangeDataLayer(DataSetLayer):
     def __init__(self, data_set, size, xscaler:DataViewScaler, yscaler:DataViewScaler, type_color_map:dict, type_row:int ):
@@ -225,7 +243,7 @@ class DateRangeDataLayer(DataSetLayer):
 
 class UIGraph(UIImage):
     DEFAULT_CONFIG = {
-        'background_color': pygame.Color(255, 255, 255, 255),
+        'background_color': pygame.Color(220, 220, 220, 255),
         'margin': 10,
         'title': {
             'font': 'arial',
@@ -298,12 +316,21 @@ class UIGraph(UIImage):
 
         self.calculate_graph_rect()
         origin = self.graph_rect.topleft
-        self.background_layer = BackgroundLayer(self.graph_rect.size, pygame.Color(200, 200, 200, 255), self._xscaler, self._yscaler, offset=origin)
+        self.background_layer = BackgroundLayer(self.graph_rect.size, pygame.Color(220, 220, 220, 255), self._xscaler, self._yscaler, offset=origin)
         self.add_layer(self.background_layer)
 
         self.axis_layer = AxisLayer(self.get_relative_rect().size, self.axis_color, self.axis_width, self._xscaler, self._yscaler, self.graph_rect)
-        self.add_layer(self.axis_layer)
         self.axis_layer.recalculate_layout()
+
+        w = self.graph_rect.width - self.axis_layer.y_axis_rect.width
+        h = self.graph_rect.height - self.axis_layer.x_axis_rect.height
+        data_bg_layer = BackgroundLayer((w, h), pygame.Color(255, 255, 255, 255), self._xscaler, self._yscaler, self.axis_layer.y_axis_rect.topright)
+        self.add_layer(data_bg_layer)
+
+        self.add_layer(self.axis_layer)
+
+        bp_range_layer = BPRangeLayer(self.get_relative_rect().size, pygame.Color(220, 255, 220, 128), self._xscaler, self._yscaler)
+        self.add_layer(bp_range_layer)
 
         self.recalculate_layout()
         # self.redraw()
@@ -393,64 +420,6 @@ class UIGraph(UIImage):
         self._yscaler.view_min = self.graph_data_rect.bottom
         self._yscaler.view_max = self.graph_data_rect.top
 
-    def draw_sleep_data_layer(self):
-#        if not self._layers['sleep'].visible:
-#            return
-#        surface = self._layers['sleep'].surface
-
-        if self.sleep_data is None:
-            return
-        surface = None
-        top = self._yscaler.view_max
-        bottom = self._yscaler.view_min
-        H = bottom - top
-
-        for row in self.sleep_data:
-            color = pygame.Color(50, 50, 50, 128)
-#           HKCategoryValueSleepAnalysisAsleep
-#           HKCategoryValueSleepAnalysisInBed
-#           HKCategoryValueSleepAnalysisAwake
-            print(f'VAL {row[0]}')
-            yoff = 0
-            if row[0] == 'HKCategoryValueSleepAnalysisInBed':
-                color = pygame.Color(200, 200, 255, 128)
-                color2 = pygame.Color(0, 0, 128)
-            elif row[0] == 'HKCategoryValueSleepAnalysisAwake':
-                color = pygame.Color(255, 255, 200, 128)
-                color2 = pygame.Color(128, 128, 0)
-                # yoff = H * 0.5
-            elif row[0] == 'HKCategoryValueSleepAnalysisAsleep':
-                color = pygame.Color(200, 255, 200, 128)
-                color2 = pygame.Color(0, 128, 0)
-                # yoff = H * 0.75
-            left = self._xscaler.scale(row[1])
-            right = self._xscaler.scale(row[2])
-            w = right - left
-            r = pygame.Rect(left, bottom - yoff - H, w, H)
-            pygame.draw.rect(surface, color, r)
-            #pygame.draw.rect(surface, color2, r, width=1)
-
-    def draw_data_sets(self):
-        if len(self.data_sets) < 1:
-            return
-
-        if not self._yscaler.is_valid or not self._xscaler.is_valid:
-            return
-
-
-        ## Part of BP Data
-        if self._layers['bp_normal'].visible:
-            surface = self._layers['bp_normal'].surface
-            y0 = self._yscaler.scale(120) # 120 / 80 : "normal" band for BP
-            y1 = self._yscaler.scale(80)
-            x0 = self._xscaler.view_min
-            x1 = self._xscaler.view_max
-            # on the screen zero is top so we put the max world y (200) first to flip the graph
-            r = pygame.Rect(x0, y0, x1 - x0, y1 - y0)
-            pygame.draw.rect(surface, pygame.Color(200, 255, 200, 128), r)
-            #pygame.draw.rect(surface, pygame.Color(255, 0, 0, 255), r, width=1)
-            pygame.draw.line(surface, pygame.Color(0, 255, 0, 255), (x0, y0), (x1, y0))
-            pygame.draw.line(surface, pygame.Color(0, 255, 0, 255), (x0, y1), (x1, y1))
         for ds in self.data_sets:
             ds_name = ds.name
             if not self._layers[ds_name].visible:
@@ -478,6 +447,7 @@ class UIGraph(UIImage):
                     pygame.draw.lines(self._layers[ds.name].surface, ds.color, False, line, width=ds.line_width)
 
     def draw_graph_data(self):
+        pass
 #        if not self._layers['graph_rect'].visible:
 #            return
 #        surface = self._layers['graph_rect'].surface
@@ -489,7 +459,7 @@ class UIGraph(UIImage):
         # self.draw_sleep_data_layer()
         # blit the sleep data surface
         # surface.blit(self._layers['sleep'].surface, (0,0))
-        self.draw_data_sets()
+        # self.draw_data_sets()
 
     def redraw(self):
         surface = self.base_surface
@@ -497,8 +467,6 @@ class UIGraph(UIImage):
             print(f'Creating missing base surface')
             pygame.Surface(self.get_relative_rect().size, flags=SRCALPHA)
         surface.fill(self._background_color)
-
-        self.draw_graph_data()
 
         for layer in self._layer_list:
             layer.redraw(self.base_surface)
