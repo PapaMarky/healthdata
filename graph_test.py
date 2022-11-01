@@ -6,7 +6,7 @@ from pygame_gui.elements import UIImage
 from pygame_gui_extras.app import GuiApp
 
 from applehealthtool.GraphData import DataSeries, DataDateRange
-from applehealthtool.TimeDataGraph import UITimeDataGraph
+from applehealthtool.TimeDataGraph import UITimeDataGraph, DataSeriesLayer, GraphLayer
 from applehealthtool.healthdatabase import AppleHealthDatabase
 
 test_data = [
@@ -60,8 +60,11 @@ class GraphTestApp(GuiApp):
             }
         )
 
-    def add_data(self, data_set:DataSeries):
-        self.graph.add_data(data_set)
+    def add_series_layer(self, data_series:DataSeries):
+        self.graph.add_data_series_layer(data_series)
+
+    def add_layer(self, layer:GraphLayer):
+        self.graph.add_layer(layer)
 
     def add_sleep_data(self, data:DataDateRange):
         if data.data_count > 0:
@@ -112,7 +115,7 @@ if __name__ == '__main__':
                              line_width=3
                              )
         print(f'    BP min/max: {data_series.x_minmax}, {data_series.y_minmax}')
-        app.add_data(data_series)
+        app.add_series_layer(data_series)
 
     hr_data = database.get_heart_rate_report(startdate=startdate, enddate=enddate, sourcename=sourcename)
     print(f'** HR Count: {len(hr_data)}')
@@ -127,7 +130,7 @@ if __name__ == '__main__':
                            color=pygame.Color(0, 200, 0, 255),
                            line_width=3)
 
-        app.add_data(hr_series)
+        app.add_series_layer(hr_series)
 
     sleep_data = database.get_sleep_report(startdate=startdate, enddate=enddate, sourcename=sourcename)
     print(f'** SLEEP Count: {len(sleep_data)}')

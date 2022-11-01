@@ -2,6 +2,7 @@ import datetime
 
 import pygame
 
+
 class DataSet():
     def __init__(self, name, rows, label='', color=pygame.Color(0, 0, 0)):
         self.name = name
@@ -12,6 +13,28 @@ class DataSet():
     @property
     def data_count(self):
         return len(self._data)
+
+    def get_iter_row(self, index):
+        if index >= 0 and index < self.data_count:
+            return []
+        raise StopIteration
+
+    class DataSetIterator():
+        def __init__(self, rangedata):
+            self._series = rangedata
+            self._current = 0
+
+        def __next__(self):
+            if self._current < len(self._series._data):
+                row = self._series.get_iter_row(self._current)
+                self._current += 1
+                return row
+            else:
+                raise StopIteration
+
+    def __iter__(self):
+        return DataSet.DataSetIterator(self)
+
 
 class DataDateRange(DataSet):
     def __init__(self, name, rows, x_start_col, x_end_col, type_col,
@@ -45,26 +68,16 @@ class DataDateRange(DataSet):
         self._xmin = float(self._data[0][self.x_start_col])
         self._xmax = float(self._data[-1][self.x_end_col])
 
-    def __iter__(self):
-        return DataDateRangeIterator(self)
-
-class DataDateRangeIterator():
-    def __init__(self,
-                 rangedata: DataDateRange):
-        self._series = rangedata
-        self._current = 0
-
-    def __next__(self):
-        if self._current < len(self._series._data):
-            row = [
-                self._series._data[self._current][self._series.type_col],
-                self._series._data[self._current][self._series.x_start_col],
-                self._series._data[self._current][self._series.x_end_col],
+    def get_iter_row(self, index):
+        if index >= 0 and index < self.data_count:
+            return [
+                self._data[index][self.type_col],
+                self._data[index][self.x_start_col],
+                self._data[index][self.x_end_col],
             ]
-            self._current += 1
-            return row
         else:
             raise StopIteration
+
 
 
 class DataSeries(DataSet):
@@ -102,27 +115,21 @@ class DataSeries(DataSet):
         print(f'   x min/max: {self._xmin} / {self._xmax}')
         print(f'data min/max: {self._ymin} / {self._ymax}')
 
-    class DataSeriesIterator():
-        def __init__(self, dataseries):
-            self._series = dataseries
-            self._current = 0
-
-        def __next__(self):
-            if self._current < len(self._series._data):
-                row = [ self._series._data[self._current][self._series._x_data_col] ]
-                for y in self._series._y_data_cols:
-                    row.append(self._series._data[self._current][y])
-                self._current += 1
-                return row
-            else:
-                raise StopIteration
-
-    def __iter__(self):
-        return self.DataSeriesIterator(self)
+    def get_iter_row(self, index):
+        if index >= 0 and index < self.data_count:
+            row = [
+                self._data[index][self._x_data_col]
+            ]
+            for y in self._y_data_cols:
+                row.append(self._data[index][y])
+            return row
+        else:
+            raise StopIteration
 
     @property
     def x_minmax(self):
         return (self._xmin, self._xmax)
+
     @property
     def y_minmax(self):
         return (self._ymin, self._ymax)
@@ -130,6 +137,7 @@ class DataSeries(DataSet):
     @property
     def x_min(self):
         return self._xmin
+
     @property
     def x_max(self):
         return self._xmax
@@ -137,6 +145,7 @@ class DataSeries(DataSet):
     @property
     def y_min(self):
         return self._ymin
+
     @property
     def y_max(self):
         return self._ymax
@@ -148,9 +157,11 @@ class DataSeries(DataSet):
     @property
     def color(self):
         return self._color
+
     @property
     def line_width(self):
         return self._line_width
+
 
 class DataViewScaler:
     def __init__(self, data_limits, view_limits, clamp=False):
